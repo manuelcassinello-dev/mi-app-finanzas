@@ -2,61 +2,46 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Forzar que la app se vea limpia
-st.set_page_config(page_title="Mi Libertad Financiera", layout="wide")
+# 1. FORZAR COLORES LEGIBLES
+st.set_page_config(page_title="Mi Libertad", layout="wide")
 
-# Estilo para asegurar que el texto sea visible (Negro)
 st.markdown("""
     <style>
-    h1, h2, h3, p, span, .stMetric label { color: #1a1a1a !important; font-weight: bold !important; }
-    .stMetric { background-color: #ffffff !important; border: 2px solid #00d1b2 !important; border-radius: 15px; }
+    /* Forzamos que todo el texto sea negro carbón para que se vea bien */
+    .stApp { background-color: white; }
+    h1, h2, h3, p, span, label, .stMetric { color: #000000 !important; }
+    div[data-testid="stMetricValue"] { color: #000000 !important; font-weight: bold; }
+    .stMetric { border: 2px solid #00d1b2; padding: 15px; border-radius: 10px; background-color: #f0fdfa; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💰 Mi Panel de Libertad Financiera")
+st.title("💰 Mi Panel de Control")
 
-# --- BLOQUE 1: TUS DATOS REALES (Cámbialos aquí abajo) ---
-# Aquí es donde tú mismo puedes actualizar tus números cada mes
-ingresos_trabajo = 2500
-ingresos_pasivos = 350 # Dividendos, alquileres...
-gastos_fijos = 1200
-gastos_disfrute = 400
-ahorro_mes = 1250
+# 2. PANEL LATERAL PARA METER TUS DATOS
+st.sidebar.header("📝 Actualiza tus Cifras")
+patrimonio = st.sidebar.number_input("Tu Patrimonio Total (€)", value=55000)
+gastos_mes = st.sidebar.number_input("Tus Gastos Mensuales (€)", value=1500)
+pasivos_mes = st.sidebar.number_input("Ingresos Pasivos (€)", value=300)
 
-patrimonio_total = 55000 
-objetivo_libertad = 100000
+# 3. CÁLCULOS
+meses_libertad = patrimonio / gastos_mes if gastos_mes > 0 else 0
+porcentaje_libertad = (pasivos_mes / gastos_mes) * 100 if gastos_mes > 0 else 0
 
-# --- CÁLCULOS AUTOMÁTICOS ---
-libertad_por_ahorro = (patrimonio_total / (gastos_fijos + gastos_disfrute)) if (gastos_fijos + gastos_disfrute) > 0 else 0
-porcentaje_pasivos = (ingresos_pasivos / gastos_fijos) * 100 if gastos_fijos > 0 else 0
-
-# --- INTERFAZ VISUAL ---
-col1, col2, col3 = st.columns(3)
+# 4. MOSTRAR RESULTADOS
+col1, col2 = st.columns(2)
 with col1:
-    st.metric("Patrimonio Neto", f"{patrimonio_total} €")
+    st.metric("Meses de ahorro", f"{meses_libertad:.1f} meses")
 with col2:
-    st.metric("Meses de Libertad (Ahorro)", f"{libertad_por_ahorro:.1f} meses")
-with col3:
-    st.metric("% Libertad (Vía Pasivos)", f"{porcentaje_pasivos:.1f}%")
+    st.metric("Libertad Financiera", f"{porcentaje_libertad:.1f}%")
 
 st.divider()
 
-# --- GRÁFICOS ---
-c1, c2 = st.columns(2)
-with c1:
-    st.subheader("Distribución de Patrimonio")
-    df_patrimonio = pd.DataFrame({
-        "Activo": ["Vivienda", "Fondos Indexados", "Efectivo", "Cripto/Otros"],
-        "Valor": [30000, 15000, 7000, 3000]
-    })
-    fig1 = px.pie(df_patrimonio, values='Valor', names='Activo', hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
-    st.plotly_chart(fig1, use_container_width=True)
-
-with c2:
-    st.subheader("Felicidad vs Obligación")
-    df_gastos = pd.DataFrame({
-        "Tipo": ["Obligación (Fijos)", "Felicidad (Variables)"],
-        "Euros": [gastos_fijos, gastos_disfrute]
-    })
-    fig2 = px.bar(df_gastos, x='Tipo', y='Euros', color='Tipo', color_discrete_map={"Obligación (Fijos)": "#ff4b4b", "Felicidad (Variables)": "#00d1b2"})
-    st.plotly_chart(fig2, use_container_width=True)
+# 5. GRÁFICO DE DISTRIBUCIÓN (Configurable)
+st.subheader("¿En qué tienes invertido tu dinero?")
+# Aquí simulamos unos datos, pero pronto los leeremos de tu lista
+datos = pd.DataFrame({
+    "Activo": ["Vivienda", "Fondos", "Efectivo"],
+    "Valor": [patrimonio*0.6, patrimonio*0.3, patrimonio*0.1]
+})
+fig = px.pie(datos, values='Valor', names='Activo', hole=0.5, color_discrete_sequence=["#00d1b2", "#1f2937", "#94a3b8"])
+st.plotly_chart(fig, use_container_width=True)
