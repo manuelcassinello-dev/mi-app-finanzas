@@ -2,70 +2,61 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Configuración de página
-st.set_page_config(page_title="Mi App de Libertad Financiera", layout="wide")
+# Forzar que la app se vea limpia
+st.set_page_config(page_title="Mi Libertad Financiera", layout="wide")
 
-# Estilos CSS para que se parezca a Fintonic
+# Estilo para asegurar que el texto sea visible (Negro)
 st.markdown("""
     <style>
-    .stApp { background-color: #f8fafd; }
-    div.stMetric { background-color: white; padding: 15px; border-radius: 10px; border: 1px solid #e0e6ed; }
+    h1, h2, h3, p, span, .stMetric label { color: #1a1a1a !important; font-weight: bold !important; }
+    .stMetric { background-color: #ffffff !important; border: 2px solid #00d1b2 !important; border-radius: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💰 Mi Dashboard de Felicidad y Libertad")
+st.title("💰 Mi Panel de Libertad Financiera")
 
-# --- SIMULACIÓN DE DATOS (Para que veas cómo queda) ---
-# En el futuro, estos datos vendrán de tu Excel o base de datos
-datos_demo = pd.DataFrame([
-    {"Concepto": "Alquiler", "Importe": 800, "Regla": "50% (Fijos)", "Sentimiento": "Obligación"},
-    {"Concepto": "Suscripción Gym", "Importe": 50, "Regla": "30% (Variable)", "Sentimiento": "Felicidad"},
-    {"Concepto": "Cena Amigos", "Importe": 60, "Regla": "30% (Variable)", "Sentimiento": "Felicidad"},
-    {"Concepto": "Luz y Agua", "Importe": 120, "Regla": "50% (Fijos)", "Sentimiento": "Obligación"},
-    {"Concepto": "Ahorro Indexados", "Importe": 400, "Regla": "20% (Ahorro)", "Sentimiento": "Felicidad"},
-    {"Concepto": "Seguro Coche", "Importe": 40, "Regla": "50% (Fijos)", "Sentimiento": "Obligación"},
-])
+# --- BLOQUE 1: TUS DATOS REALES (Cámbialos aquí abajo) ---
+# Aquí es donde tú mismo puedes actualizar tus números cada mes
+ingresos_trabajo = 2500
+ingresos_pasivos = 350 # Dividendos, alquileres...
+gastos_fijos = 1200
+gastos_disfrute = 400
+ahorro_mes = 1250
 
-# --- MÉTRICAS SUPERIORES ---
+patrimonio_total = 55000 
+objetivo_libertad = 100000
+
+# --- CÁLCULOS AUTOMÁTICOS ---
+libertad_por_ahorro = (patrimonio_total / (gastos_fijos + gastos_disfrute)) if (gastos_fijos + gastos_disfrute) > 0 else 0
+porcentaje_pasivos = (ingresos_pasivos / gastos_fijos) * 100 if gastos_fijos > 0 else 0
+
+# --- INTERFAZ VISUAL ---
 col1, col2, col3 = st.columns(3)
-total_gastos = datos_demo[datos_demo["Regla"] != "20% (Ahorro)"]["Importe"].sum()
-felicidad_neta = datos_demo[datos_demo["Sentimiento"] == "Felicidad"]["Importe"].sum()
-
 with col1:
-    st.metric("Gasto Total", f"{total_gastos} €")
+    st.metric("Patrimonio Neto", f"{patrimonio_total} €")
 with col2:
-    st.metric("Inversión en Felicidad", f"{felicidad_neta} €", "¡Sigue así!")
+    st.metric("Meses de Libertad (Ahorro)", f"{libertad_por_ahorro:.1f} meses")
 with col3:
-    st.metric("Ratio de Ahorro", "22%", "Objetivo 20%")
+    st.metric("% Libertad (Vía Pasivos)", f"{porcentaje_pasivos:.1f}%")
 
 st.divider()
 
-# --- FILAS DE GRÁFICOS ---
+# --- GRÁFICOS ---
 c1, c2 = st.columns(2)
-
 with c1:
-    st.subheader("Regla 50 / 20 / 30")
-    # Calculamos cuánto hay en cada categoría de la regla
-    fig_regla = px.pie(datos_demo, values='Importe', names='Regla', 
-                       color_discrete_sequence=["#2ECC71", "#3498DB", "#E74C3C"],
-                       hole=0.6)
-    st.plotly_chart(fig_regla, use_container_width=True)
+    st.subheader("Distribución de Patrimonio")
+    df_patrimonio = pd.DataFrame({
+        "Activo": ["Vivienda", "Fondos Indexados", "Efectivo", "Cripto/Otros"],
+        "Valor": [30000, 15000, 7000, 3000]
+    })
+    fig1 = px.pie(df_patrimonio, values='Valor', names='Activo', hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
+    st.plotly_chart(fig1, use_container_width=True)
 
 with c2:
-    st.subheader("Gastos: ¿Obligación o Disfrute?")
-    # Gráfico para ver el sentimiento del gasto
-    fig_sentimiento = px.bar(datos_demo, x='Sentimiento', y='Importe', color='Sentimiento',
-                             color_discrete_map={"Felicidad": "#00D1B2", "Obligación": "#FF3860"})
-    st.plotly_chart(fig_sentimiento, use_container_width=True)
-
-# --- FORMULARIO PARA AÑADIR DATOS ---
-st.sidebar.header("📝 Registrar Nuevo Gasto")
-with st.sidebar:
-    nuevo_concepto = st.text_input("Concepto (Ej: Supermercado)")
-    nuevo_importe = st.number_input("Importe (€)", min_value=0.0)
-    nueva_regla = st.selectbox("Categoría Regla", ["50% (Fijos)", "30% (Variable)", "20% (Ahorro)"])
-    nuevo_sentimiento = st.radio("¿Cómo te hace sentir?", ["Obligación", "Felicidad"])
-    
-    if st.button("Guardar Movimiento"):
-        st.success(f"Registrado: {nuevo_concepto} por {nuevo_importe}€")
-        st.info("Nota: En el siguiente paso haremos que esto se guarde de verdad.")
+    st.subheader("Felicidad vs Obligación")
+    df_gastos = pd.DataFrame({
+        "Tipo": ["Obligación (Fijos)", "Felicidad (Variables)"],
+        "Euros": [gastos_fijos, gastos_disfrute]
+    })
+    fig2 = px.bar(df_gastos, x='Tipo', y='Euros', color='Tipo', color_discrete_map={"Obligación (Fijos)": "#ff4b4b", "Felicidad (Variables)": "#00d1b2"})
+    st.plotly_chart(fig2, use_container_width=True)
