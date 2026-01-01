@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Configuración de estilo Fintonic
+# 1. Configuración de estilo Fintonic
 st.set_page_config(page_title="Mi Fintonic Personal", layout="wide")
 
 st.markdown("""
@@ -13,24 +13,27 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# URL de tu Google Sheets (la que termina en /export?format=csv)
+# 2. Enlace de Google Sheets (Corregido)
 URL_MOVIMIENTOS = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZNqNLXGe9WRTLKMnpk8jdOg/export?format=csv"
+
 try:
+    # Intento de lectura de datos
     df = pd.read_csv(URL_MOVIMIENTOS)
     
     st.title("📱 Mi Salud Financiera")
 
-    # --- BLOQUE 1: RESUMEN DE GASTOS (TIPO FINTONIC) ---
+    # --- BLOQUE 1: RESUMEN DE GASTOS ---
     st.subheader("Análisis de Gastos")
     col1, col2, col3 = st.columns(3)
     
+    # Cálculos dinámicos
     gastos_fijos = df[df['Tipo'] == 'Fijo']['Importe'].sum()
     gastos_variables = df[df['Tipo'] == 'Variable']['Importe'].sum()
     ingresos = df[df['Categoria'] == 'Ingreso']['Importe'].sum()
 
-    col1.metric("Ingresos", f"{ingresos} €")
-    col2.metric("Gastos Fijos (Obligación)", f"{gastos_fijos} €", delta="- Fijos", delta_color="inverse")
-    col3.metric("Gastos Variables (Ocio)", f"{gastos_variables} €", delta="- Variables", delta_color="normal")
+    col1.metric("Ingresos", f"{ingresos:,.2f} €")
+    col2.metric("Gastos Fijos", f"{gastos_fijos:,.2f} €", delta="- Obligación", delta_color="inverse")
+    col3.metric("Gastos Variables", f"{gastos_variables:,.2f} €", delta="- Ocio", delta_color="normal")
 
     # --- BLOQUE 2: GRÁFICOS CIRCULARES ---
     c1, c2 = st.columns(2)
@@ -47,24 +50,21 @@ try:
                           color_discrete_map={'Fijo': '#1e293b', 'Variable': '#00d1b2'})
         st.plotly_chart(fig_tipo, use_container_width=True)
 
-    # --- BLOQUE 3: INVERSIONES Y REVALORIZACIÓN ---
+    # --- BLOQUE 3: INVERSIONES ---
     st.divider()
     st.subheader("📈 Mis Inversiones")
     
-    # Simulación de revalorización (esto se puede conectar a Yahoo Finance luego)
-    # Por ahora, para que lo veas, lo calculamos sobre un valor actual hipotético
+    # Valores de ejemplo (puedes cambiarlos según tu Excel)
     valor_compra = 10000 
-    valor_actual = 11500 # Esto crecerá cuando conectemos la API
+    valor_actual = 11500 
     beneficio = valor_actual - valor_compra
     progreso = (beneficio / valor_compra) * 100
 
     m1, m2 = st.columns(2)
-    m1.metric("Patrimonio Invertido", f"{valor_actual} €", f"+{beneficio} € (Total)")
-    m2.metric("Rentabilidad Actual", f"{progreso}%", "En verde")
+    m1.metric("Patrimonio Invertido", f"{valor_actual:,.2f} €", f"+{beneficio:,.2f} €")
+    m2.metric("Rentabilidad", f"{progreso:.2f} %", "Total acumulado")
 
 except Exception as e:
-    st.warning("except Exception as e:
-    st.error("Error al leer los datos:")
-    st.write(e)
-    st.write("Datos leídos hasta ahora:")
-    st.write(df.head() if 'df' in locals() else "No se ha podido crear el DataFrame")
+    st.error("⚠️ Error detectado al leer el Google Sheets")
+    st.write("Detalle técnico:", e)
+    st.info("💡 Consejo: Revisa que tu Google Sheets tenga estas columnas: Fecha, Concepto, Importe, Categoria, Tipo, Felicidad")
