@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 # 1. Configuración de estilo
-st.set_page_config(page_title="Mi Salud Financiera", layout="wide")
+st.set_page_config(page_title="Gestión Patrimonial Pro", layout="wide")
 st.markdown("<style>.stMetric { background-color: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #007BFF; }</style>", unsafe_allow_html=True)
 
 # 2. Enlace de datos
@@ -12,64 +12,70 @@ URL_MOVIMIENTOS = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZ
 try:
     df = pd.read_csv(URL_MOVIMIENTOS)
     
-    # Limpieza de datos
+    # Limpieza y preparación de fechas
     df.columns = df.columns.str.strip().str.replace('í', 'i').str.replace('ó', 'o')
     df['Importe'] = df['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
     df['Importe'] = pd.to_numeric(df['Importe'], errors='coerce').fillna(0)
+    
+    # Convertimos la fecha a formato real para poder agrupar por mes/año
+    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True)
+    df['Año'] = df['Fecha'].dt.year
+    df['Mes'] = df['Fecha'].dt.strftime('%Y-%m')
 
-    st.title("📊 Análisis de Flujos: Ingresos vs Gastos")
-    st.divider()
+    st.title("🏛️ Mi Patrimonio y Evolución")
+    
+    # --- FILTRO TEMPORAL ---
+    años_disponibles = sorted(df['Año'].unique().tolist(), reverse=True)
+    seleccion_año = st.sidebar.selectbox("Selecciona el Año", años_disponibles)
+    df_filtrado = df[df['Año'] == seleccion_año]
 
-    # --- SEPARACIÓN DE DATOS ---
-    df_ingresos = df[df['Categoria'] == 'Ingreso']
-    df_gastos = df[df['Categoria'] == 'Gasto']
-    df_inversiones = df[df['Categoria'] == 'Inversion']
+    # --- CÁLCULOS ---
+    ingresos = df_filtrado[df_filtrado['Categoria'] == 'Ingreso']['Importe'].sum()
+    fijos = df_filtrado[df_filtrado['Tipo'] == 'Fijo']['Importe'].sum()
+    variables = df_filtrado[df_filtrado['Tipo'] == 'Variable']['Importe'].sum()
+    inversiones = df_filtrado[df_filtrado['Categoria'] == 'Inversion']['Importe'].sum()
+    ahorro_puro = ingresos - fijos - variables - inversiones
 
     # --- MÉTRICAS ---
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Ingresos", f"{df_ingresos['Importe'].sum():,.2f} €")
-    c2.metric("Total Gastos", f"{df_gastos['Importe'].sum():,.2f} €")
-    c3.metric("Total Inversiones", f"{df_inversiones['Importe'].sum():,.2f} €")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(f"Ingresos {seleccion_año}", f"{ingresos:,.2f} €")
+    c2.metric("Gastos Fijos", f"{fijos:,.2f} €")
+    c3.metric("Gastos Variables", f"{variables:,.2f} €")
+    c4.metric("Patrimonio Neto", f"{df['Importe'][df['Categoria']=='Ingreso'].sum() - df['Importe'][df['Categoria']!='Ingreso'].sum():,.2f} €")
 
-    # --- BLOQUE VISUAL: LOS DOS GRÁFICOS ---
-    col_izq, col_der = st.columns(2)
+    st.divider()
 
-    with col_izq:
-        st.subheader("🔵 Origen de Ingresos")
-        if not df_ingresos.empty:
-            fig_ing = px.pie(
-                df_ingresos, 
-                values='Importe', 
-                names='Concepto', 
-                hole=0.5,
-                color_discrete_sequence=px.colors.sequential.Blues_r # Tonos azules
-            )
-            st.plotly_chart(fig_ing, use_container_width=True)
-        else:
-            st.info("No hay datos de ingresos")
+    # --- BLOQUE 1: EVOLUCIÓN TEMPORAL ---
+    st.subheader("📈 Evolución de mi Patrimonio")
+    # Agrupamos por mes para ver la tendencia
+    evolucion = df.groupby(['Mes', 'Categoria'])['Importe'].sum().unstack().fillna(0)
+    if 'Ingreso' in evolucion:
+        fig_linea = px.line(evolucion, y='Ingreso', title="Tendencia Mensual de Ingresos", line_shape="spline", render_mode="svg")
+        fig_linea.update_traces(line_color='#007BFF')
+        st.plotly_chart(fig_linea, use_container_width=True)
 
-    with col_der:
-        st.subheader("🔴 Destino de Gastos")
-        if not df_gastos.empty:
-            fig_gas = px.pie(
-                df_gastos, 
-                values='Importe', 
-                names='Concepto', 
-                hole=0.5,
-                color_discrete_sequence=px.colors.sequential.Reds_r # Tonos rojos
-            )
-            st.plotly_chart(fig_gas, use_container_width=True)
-        else:
-            st.info("No hay datos de gastos")
+    # --- BLOQUE 2: PORCENTAJES DE GASTO Y AHORRO ---
+    st.subheader("🎯 Análisis de Regla de Ahorro")
+    col_a, col_b = st.columns(2)
 
-    # --- GRÁFICO DE INVERSIONES (Si existen) ---
-    if not df_inversiones.empty:
-        st.subheader("🟢 Detalle de Inversiones")
-        fig_inv = px.bar(
-            df_inversiones, x='Concepto', y='Importe',
-            color_discrete_sequence=['#28A745']
-        )
-        st.plotly_chart(fig_inv, use_container_width=True)
+    with col_a:
+        # Gráfico circular de porcentajes reales sobre el ingreso
+        datos_queso = pd.DataFrame({
+            'Concepto': ['Fijos', 'Variables', 'Inversión/Ahorro'],
+            'Valor': [fijos, variables, (inversiones + ahorro_puro)]
+        })
+        fig_reparto = px.pie(datos_queso, values='Valor', names='Concepto', hole=0.5,
+                             color_discrete_map={'Fijos': '#DC3545', 'Variables': '#FFC107', 'Inversión/Ahorro': '#28A745'},
+                             title="% del Ingreso destinado a:")
+        st.plotly_chart(fig_reparto, use_container_width=True)
+
+    with col_b:
+        # Desglose detallado de los gastos actuales
+        df_gastos_solo = df_filtrado[df_filtrado['Categoria'] == 'Gasto']
+        fig_barras = px.bar(df_gastos_solo, x='Concepto', y='Importe', color='Tipo',
+                            title="Detalle de Gastos por Concepto",
+                            color_discrete_map={'Fijo': '#DC3545', 'Variable': '#007BFF'})
+        st.plotly_chart(fig_barras, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error en el análisis: {e}")
