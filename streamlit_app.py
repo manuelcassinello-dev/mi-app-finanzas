@@ -2,71 +2,70 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. Configuración de pantalla
-st.set_page_config(page_title="Mi Fintonic Personal", layout="wide")
-
-st.markdown("""
-    <style>
-    .stApp { background-color: #f8fafc; }
-    [data-testid="stMetric"] { 
-        background-color: #ffffff; border-radius: 12px; padding: 20px; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #00d1b2; 
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# 1. Configuración de estilo
+st.set_page_config(page_title="Mi Panel Financiero", layout="wide")
+st.markdown("<style>.stMetric { background-color: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #00d1b2; }</style>", unsafe_allow_html=True)
 
 # 2. Enlace de datos
 URL_MOVIMIENTOS = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZNqNLXGe9WRTLKMnpk8jdOg/export?format=csv"
 
 try:
-    # LEER SIN SALTAR FILAS (Tus títulos están en la fila 1 según tu imagen)
     df = pd.read_csv(URL_MOVIMIENTOS)
     
-    # LIMPIEZA TOTAL: Quita espacios, tildes y pone todo en minúsculas para comparar mejor
+    # Limpieza de nombres de columnas y datos
     df.columns = df.columns.str.strip().str.replace('í', 'i').str.replace('ó', 'o')
-    
-    # Aseguramos que los nombres de las columnas sean los correctos internamente
-    columnas_necesarias = ['Fecha', 'Concepto', 'Importe', 'Categoria', 'Tipo']
-    
-    st.title("📱 Mi Panel Financiero")
+    df['Importe'] = df['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+    df['Importe'] = pd.to_numeric(df['Importe'], errors='coerce').fillna(0)
+
+    st.title("📱 Análisis Total: Ingresos, Gastos e Inversiones")
     st.divider()
 
-    # --- PROCESAMIENTO ---
-    # Convertimos Importe a número por si acaso
-    df['Importe'] = pd.to_numeric(df['Importe'], errors='coerce').fillna(0)
+    # --- CLASIFICACIÓN DE DATOS ---
+    df_ingresos = df[df['Categoria'] == 'Ingreso']
+    df_inversiones = df[df['Categoria'] == 'Inversion']
+    # Los gastos es todo lo que NO es ingreso ni inversion
+    df_gastos = df[(df['Categoria'] != 'Ingreso') & (df['Categoria'] != 'Inversion')]
+
+    # --- CÁLCULOS PARA MÉTRICAS ---
+    total_ingresos = df_ingresos['Importe'].sum()
+    total_inversiones = df_inversiones['Importe'].sum()
+    total_gastos = df_gastos['Importe'].sum()
+    balance_final = total_ingresos - total_gastos - total_inversiones
+
+    # --- BLOQUE 1: MÉTRICAS ---
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Ingresos", f"{total_ingresos:,.2f} €")
+    c2.metric("Gastos Totales", f"{total_gastos:,.2f} €", delta_color="inverse")
+    c3.metric("Inversiones", f"{total_inversiones:,.2f} €", delta="Ahorro")
+    c4.metric("Disponible Real", f"{balance_final:,.2f} €")
+
+    # --- BLOQUE 2: ANÁLISIS VISUAL ---
+    st.subheader("Distribución del Capital")
+    col_a, col_b = st.columns(2)
     
-    # Quitamos filas que no tengan datos esenciales
-    df = df.dropna(subset=['Importe', 'Categoria'])
+    with col_a:
+        # GRÁFICO 1: ¿A dónde va mi dinero? (Gastos vs Inversiones)
+        # Creamos un resumen rápido para este gráfico
+        resumen_data = {
+            'Concepto': ['Gastos', 'Inversiones'],
+            'Total': [total_gastos, total_inversiones]
+        }
+        df_resumen = pd.DataFrame(resumen_data)
+        fig1 = px.pie(df_resumen, values='Total', names='Concepto', hole=0.5,
+                      title="Destino del Ingreso (Gastos vs Inversión)",
+                      color_discrete_map={'Gastos': '#ff4b4b', 'Inversiones': '#00d1b2'})
+        st.plotly_chart(fig1, use_container_width=True)
+            
+    with col_b:
+        # GRÁFICO 2: Detalle de Categorías (Incluye todo para ver pesos relativos)
+        fig2 = px.sunburst(df, path=['Categoria', 'Concepto'], values='Importe',
+                           title="Mapa Detallado de Movimientos",
+                           color_discrete_sequence=px.colors.qualitative.Safe)
+        st.plotly_chart(fig2, use_container_width=True)
 
-    # Cálculos
-    ingresos = df[df['Categoria'].str.contains('Ingreso|Nomina', case=False, na=False)]['Importe'].sum()
-    gastos_fijos = df[df['Tipo'].str.contains('Fijo', case=False, na=False)]['Importe'].sum()
-    gastos_variables = df[df['Tipo'].str.contains('Variable', case=False, na=False)]['Importe'].sum()
-    ahorro = ingresos - (gastos_fijos + gastos_variables)
-
-    # --- MÉTRICAS ---
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Ingresos Totales", f"{ingresos:,.2f} €")
-    col2.metric("Gastos Fijos", f"{gastos_fijos:,.2f} €")
-    col3.metric("Gastos Variables", f"{gastos_variables:,.2f} €")
-    col4.metric("Balance Neto", f"{ahorro:,.2f} €")
-
-    # --- GRÁFICOS ---
-    st.subheader("Análisis Visual")
-    c1, c2 = st.columns(2)
-    
-    with c1:
-        df_gastos = df[~df['Categoria'].str.contains('Ingreso|Nomina', case=False, na=False)]
-        fig_cat = px.pie(df_gastos, values='Importe', names='Categoria', hole=0.6, title="Categorías")
-        st.plotly_chart(fig_cat, use_container_width=True)
-
-    with c2:
-        fig_tipo = px.pie(df_gastos, values='Importe', names='Tipo', hole=0.6, title="Fijo vs Variable")
-        st.plotly_chart(fig_tipo, use_container_width=True)
-
-    st.dataframe(df, use_container_width=True)
+    # --- TABLA ---
+    with st.expander("Ver historial de movimientos"):
+        st.dataframe(df, use_container_width=True)
 
 except Exception as e:
-    st.error("⚠️ Error de lectura")
-    st.write("Asegúrate de que en la FILA 1 de tu Excel los títulos sean: **Fecha, Concepto, Importe, Categoria, Tipo, Felicidad**")
-    st.write("Detalle técnico:", e)
+    st.error(f"Error al procesar los datos: {e}")
