@@ -14,7 +14,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # URL de tu Google Sheets (la que termina en /export?format=csv)
-URL_MOVIMIENTOS = "TU_ENLACE_AQUI" 
+URL_MOVIMIENTOS = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZNqNLXGe9WRTLKMnpk8jdOg//export?format=csv" 
 
 try:
     df = pd.read_csv(URL_MOVIMIENTOS)
