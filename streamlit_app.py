@@ -63,4 +63,8 @@ try:
     m2.metric("Rentabilidad Actual", f"{progreso}%", "En verde")
 
 except Exception as e:
-    st.warning("Configura el enlace de tu Google Sheets para ver tus datos reales.")
+    st.warning("except Exception as e:
+    st.error("Error al leer los datos:")
+    st.write(e)
+    st.write("Datos leídos hasta ahora:")
+    st.write(df.head() if 'df' in locals() else "No se ha podido crear el DataFrame")
