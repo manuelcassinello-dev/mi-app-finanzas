@@ -18,7 +18,7 @@ URL_MOVIMIENTOS = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZ
 
 try:
     # Intento de lectura de datos
-    df = pd.read_csv(URL_MOVIMIENTOS)
+    df = pd.read_csv(URL_MOVIMIENTOS, skiprows=1)
     
     st.title("📱 Mi Salud Financiera")
 
