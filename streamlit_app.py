@@ -2,46 +2,66 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. FORZAR COLORES LEGIBLES
-st.set_page_config(page_title="Mi Libertad", layout="wide")
+# Configuración de estilo Fintonic
+st.set_page_config(page_title="Mi Fintonic Personal", layout="wide")
 
 st.markdown("""
     <style>
-    /* Forzamos que todo el texto sea negro carbón para que se vea bien */
-    .stApp { background-color: white; }
-    h1, h2, h3, p, span, label, .stMetric { color: #000000 !important; }
-    div[data-testid="stMetricValue"] { color: #000000 !important; font-weight: bold; }
-    .stMetric { border: 2px solid #00d1b2; padding: 15px; border-radius: 10px; background-color: #f0fdfa; }
+    .stApp { background-color: #f4f7f6; }
+    [data-testid="stMetric"] { background-color: #ffffff; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid #00d1b2; }
+    h3 { color: #1e293b; padding-top: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💰 Mi Panel de Control")
+# URL de tu Google Sheets (la que termina en /export?format=csv)
+URL_MOVIMIENTOS = "TU_ENLACE_AQUI" 
 
-# 2. PANEL LATERAL PARA METER TUS DATOS
-st.sidebar.header("📝 Actualiza tus Cifras")
-patrimonio = st.sidebar.number_input("Tu Patrimonio Total (€)", value=55000)
-gastos_mes = st.sidebar.number_input("Tus Gastos Mensuales (€)", value=1500)
-pasivos_mes = st.sidebar.number_input("Ingresos Pasivos (€)", value=300)
+try:
+    df = pd.read_csv(URL_MOVIMIENTOS)
+    
+    st.title("📱 Mi Salud Financiera")
 
-# 3. CÁLCULOS
-meses_libertad = patrimonio / gastos_mes if gastos_mes > 0 else 0
-porcentaje_libertad = (pasivos_mes / gastos_mes) * 100 if gastos_mes > 0 else 0
+    # --- BLOQUE 1: RESUMEN DE GASTOS (TIPO FINTONIC) ---
+    st.subheader("Análisis de Gastos")
+    col1, col2, col3 = st.columns(3)
+    
+    gastos_fijos = df[df['Tipo'] == 'Fijo']['Importe'].sum()
+    gastos_variables = df[df['Tipo'] == 'Variable']['Importe'].sum()
+    ingresos = df[df['Categoria'] == 'Ingreso']['Importe'].sum()
 
-# 4. MOSTRAR RESULTADOS
-col1, col2 = st.columns(2)
-with col1:
-    st.metric("Meses de ahorro", f"{meses_libertad:.1f} meses")
-with col2:
-    st.metric("Libertad Financiera", f"{porcentaje_libertad:.1f}%")
+    col1.metric("Ingresos", f"{ingresos} €")
+    col2.metric("Gastos Fijos (Obligación)", f"{gastos_fijos} €", delta="- Fijos", delta_color="inverse")
+    col3.metric("Gastos Variables (Ocio)", f"{gastos_variables} €", delta="- Variables", delta_color="normal")
 
-st.divider()
+    # --- BLOQUE 2: GRÁFICOS CIRCULARES ---
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        st.write("**Gastos por Categoría**")
+        fig_cat = px.pie(df[df['Categoria'] != 'Ingreso'], values='Importe', names='Categoria', hole=0.7,
+                         color_discrete_sequence=px.colors.sequential.Mint)
+        st.plotly_chart(fig_cat, use_container_width=True)
 
-# 5. GRÁFICO DE DISTRIBUCIÓN (Configurable)
-st.subheader("¿En qué tienes invertido tu dinero?")
-# Aquí simulamos unos datos, pero pronto los leeremos de tu lista
-datos = pd.DataFrame({
-    "Activo": ["Vivienda", "Fondos", "Efectivo"],
-    "Valor": [patrimonio*0.6, patrimonio*0.3, patrimonio*0.1]
-})
-fig = px.pie(datos, values='Valor', names='Activo', hole=0.5, color_discrete_sequence=["#00d1b2", "#1f2937", "#94a3b8"])
-st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.write("**Fijos vs Variables**")
+        fig_tipo = px.pie(df[df['Categoria'] != 'Ingreso'], values='Importe', names='Tipo', hole=0.7,
+                          color_discrete_map={'Fijo': '#1e293b', 'Variable': '#00d1b2'})
+        st.plotly_chart(fig_tipo, use_container_width=True)
+
+    # --- BLOQUE 3: INVERSIONES Y REVALORIZACIÓN ---
+    st.divider()
+    st.subheader("📈 Mis Inversiones")
+    
+    # Simulación de revalorización (esto se puede conectar a Yahoo Finance luego)
+    # Por ahora, para que lo veas, lo calculamos sobre un valor actual hipotético
+    valor_compra = 10000 
+    valor_actual = 11500 # Esto crecerá cuando conectemos la API
+    beneficio = valor_actual - valor_compra
+    progreso = (beneficio / valor_compra) * 100
+
+    m1, m2 = st.columns(2)
+    m1.metric("Patrimonio Invertido", f"{valor_actual} €", f"+{beneficio} € (Total)")
+    m2.metric("Rentabilidad Actual", f"{progreso}%", "En verde")
+
+except Exception as e:
+    st.warning("Configura el enlace de tu Google Sheets para ver tus datos reales.")
