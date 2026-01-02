@@ -5,7 +5,6 @@ import plotly.express as px
 # 1. Configuración de Estilo y Página
 st.set_page_config(page_title="Control Patrimonial Total", layout="wide")
 
-# ESTILO CORREGIDO: Eliminamos el fondo blanco fijo para que sea compatible con Modo Oscuro (Móvil)
 st.markdown("""
     <style>
     [data-testid="stMetric"] {
@@ -37,7 +36,6 @@ with tab_pers:
         df_mov['Fecha'] = pd.to_datetime(df_mov['Fecha'], dayfirst=True, errors='coerce')
         df_mov = df_mov.dropna(subset=['Fecha']) 
         df_mov['Año'] = df_mov['Fecha'].dt.year
-        df_mov['Mes_Año'] = df_mov['Fecha'].dt.strftime('%Y-%m')
 
         for col in ['Precio_Compra', 'Valor_Actual']:
             df_inv[col] = df_inv[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
@@ -54,6 +52,21 @@ with tab_pers:
         c2.metric("Capital Invertido", f"{t_inv:,.2f} €")
         c3.metric("Rentabilidad Media", f"{rent:.2f} %")
 
+        # --- MEJORA 1: PROYECCIÓN ---
+        with st.expander("🔮 Ver Proyección de Crecimiento"):
+            ingresos_totales = df_mov[df_mov['Categoria'] == 'Ingreso']['Importe'].sum()
+            gastos_totales = df_mov[df_mov['Categoria'] == 'Gasto']['Importe'].sum()
+            meses_datos = len(df_mov['Fecha'].dt.strftime('%Y-%m').unique())
+            ahorro_mensual = (ingresos_totales - gastos_totales) / meses_datos if meses_datos > 0 else 0
+            
+            datos_proy = []
+            for i in range(1, 13):
+                datos_proy.append({"Mes": f"Mes +{i}", "Patrimonio": t_act + (ahorro_mensual * i)})
+            
+            fig_proy = px.line(pd.DataFrame(datos_proy), x="Mes", y="Patrimonio", markers=True, 
+                               title="Patrimonio estimado a 12 meses", color_discrete_sequence=['#28A745'])
+            st.plotly_chart(fig_proy, use_container_width=True)
+
         st.divider()
         col_inv1, col_inv2 = st.columns(2)
         with col_inv1:
@@ -65,16 +78,8 @@ with tab_pers:
             st.plotly_chart(px.bar(df_inv, x='Ticket', y='Ganancia', color='Ganancia', color_continuous_scale='Greens'), use_container_width=True)
 
         st.sidebar.header("🔎 Filtros Personales")
-        a_sel = st.sidebar.selectbox("Año (Personal)", sorted(df_mov['Año'].unique(), reverse=True))
+        a_sel = st.sidebar.selectbox("Año (Personal)", sorted(df_mov['Año'].unique(), reverse=True), key="p_year")
         
-        df_f = df_mov[df_mov['Año'] == a_sel]
-        st.subheader("💸 Ingresos vs Gastos")
-        cp1, cp2 = st.columns(2)
-        with cp1:
-            st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Ingreso'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r, title="Ingresos"), use_container_width=True)
-        with cp2:
-            st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Gasto'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r, title="Gastos"), use_container_width=True)
-
     except Exception as e:
         st.error(f"Error en Personal: {e}")
 
@@ -92,7 +97,7 @@ with tab_fam:
 
         st.sidebar.divider()
         st.sidebar.header("🏠 Filtros Familiares")
-        af_sel = st.sidebar.selectbox("Año (Familiar)", sorted(df_fam['Año'].unique(), reverse=True))
+        af_sel = st.sidebar.selectbox("Año (Familiar)", sorted(df_fam['Año'].unique(), reverse=True), key="f_year")
         df_ff = df_fam[df_fam['Año'] == af_sel]
 
         # KPIs
@@ -100,6 +105,14 @@ with tab_fam:
         g_fij = df_ff[df_ff['Tipo'] == 'Fijo']['Importe'].sum()
         g_var = df_ff[df_ff['Tipo'] == 'Variable']['Importe'].sum()
         bal = i_fam - (g_fij + g_var)
+
+        # --- MEJORA 2: ALERTAS ---
+        if bal < 0:
+            st.error(f"⚠️ ¡Cuidado! El balance familiar está en negativo: {bal:.2f} €")
+        elif g_var > (i_fam * 0.4):
+            st.warning(f"🧐 Los gastos variables son muy altos ({g_var:.2f} €). Superan el 40% de los ingresos.")
+        else:
+            st.success(f"✅ ¡Todo bajo control! Ahorro actual: {bal:.2f} €")
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Ingresos Familia", f"{i_fam:,.2f} €")
