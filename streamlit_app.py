@@ -33,6 +33,7 @@ with tab_pers:
 
         df_mov['Importe'] = df_mov['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df_mov['Importe'] = pd.to_numeric(df_mov['Importe'], errors='coerce').fillna(0)
+        df_mov['Felicidad'] = pd.to_numeric(df_mov.get('Felicidad', 0), errors='coerce').fillna(0)
         df_mov['Fecha'] = pd.to_datetime(df_mov['Fecha'], dayfirst=True, errors='coerce')
         df_mov = df_mov.dropna(subset=['Fecha']) 
         df_mov['Año'] = df_mov['Fecha'].dt.year
@@ -43,7 +44,7 @@ with tab_pers:
 
         st.title("🏛️ Mi Patrimonio Global")
         
-        # Filtro en sidebar ANTES de los cálculos
+        # Filtros Sidebar
         st.sidebar.header("🔎 Filtros Personales")
         a_sel = st.sidebar.selectbox("Año (Personal)", sorted(df_mov['Año'].unique(), reverse=True), key="p_year")
         df_f = df_mov[df_mov['Año'] == a_sel]
@@ -69,8 +70,6 @@ with tab_pers:
             st.plotly_chart(px.line(pd.DataFrame(datos_p), x="Mes", y="Patrimonio", markers=True, color_discrete_sequence=['#28A745']), use_container_width=True)
 
         st.divider()
-        
-        # PARTE DE INVERSIONES
         col_inv1, col_inv2 = st.columns(2)
         with col_inv1:
             st.subheader("🟢 Distribución Inversiones")
@@ -81,14 +80,19 @@ with tab_pers:
             st.plotly_chart(px.bar(df_inv, x='Ticket', y='Ganancia', color='Ganancia', color_continuous_scale='Greens'), use_container_width=True)
 
         st.divider()
-
-        # PARTE DE INGRESOS Y GASTOS (La que faltaba)
-        st.subheader(f"💸 Ingresos vs Gastos Personales ({a_sel})")
+        st.subheader(f"💸 Ingresos vs Gastos ({a_sel})")
         cp1, cp2 = st.columns(2)
         with cp1:
             st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Ingreso'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r, title="Ingresos"), use_container_width=True)
         with cp2:
             st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Gasto'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r, title="Gastos"), use_container_width=True)
+
+        # --- RESTAURADA: SECCIÓN FELICIDAD ---
+        st.divider()
+        st.header("😊 Análisis de Felicidad")
+        df_gasto_f = df_f[df_f['Categoria'] == 'Gasto']
+        if not df_gasto_f.empty:
+            st.plotly_chart(px.scatter(df_gasto_f, x="Importe", y="Felicidad", size="Importe", color="Concepto", hover_name="Concepto", title="Relación Coste vs. Felicidad"), use_container_width=True)
 
     except Exception as e:
         st.error(f"Error en Personal: {e}")
@@ -109,7 +113,6 @@ with tab_fam:
         af_sel = st.sidebar.selectbox("Año (Familiar)", sorted(df_fam['Año'].unique(), reverse=True), key="f_year")
         df_ff = df_fam[df_fam['Año'] == af_sel]
 
-        # Alertas Familiares
         i_fam = df_ff[df_ff['Categoria'] == 'Ingreso']['Importe'].sum()
         g_fij = df_ff[df_ff['Tipo'] == 'Fijo']['Importe'].sum()
         g_var = df_ff[df_ff['Tipo'] == 'Variable']['Importe'].sum()
