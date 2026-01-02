@@ -42,6 +42,13 @@ with tab_pers:
             df_inv[col] = pd.to_numeric(df_inv[col], errors='coerce').fillna(0)
 
         st.title("🏛️ Mi Patrimonio Global")
+        
+        # Filtro en sidebar ANTES de los cálculos
+        st.sidebar.header("🔎 Filtros Personales")
+        a_sel = st.sidebar.selectbox("Año (Personal)", sorted(df_mov['Año'].unique(), reverse=True), key="p_year")
+        df_f = df_mov[df_mov['Año'] == a_sel]
+
+        # KPIs
         t_act = df_inv['Valor_Actual'].sum()
         t_inv = df_inv['Precio_Compra'].sum()
         gan = t_act - t_inv
@@ -52,34 +59,37 @@ with tab_pers:
         c2.metric("Capital Invertido", f"{t_inv:,.2f} €")
         c3.metric("Rentabilidad Media", f"{rent:.2f} %")
 
-        # --- MEJORA 1: PROYECCIÓN ---
+        # Proyección
         with st.expander("🔮 Ver Proyección de Crecimiento"):
-            ingresos_totales = df_mov[df_mov['Categoria'] == 'Ingreso']['Importe'].sum()
-            gastos_totales = df_mov[df_mov['Categoria'] == 'Gasto']['Importe'].sum()
-            meses_datos = len(df_mov['Fecha'].dt.strftime('%Y-%m').unique())
-            ahorro_mensual = (ingresos_totales - gastos_totales) / meses_datos if meses_datos > 0 else 0
-            
-            datos_proy = []
-            for i in range(1, 13):
-                datos_proy.append({"Mes": f"Mes +{i}", "Patrimonio": t_act + (ahorro_mensual * i)})
-            
-            fig_proy = px.line(pd.DataFrame(datos_proy), x="Mes", y="Patrimonio", markers=True, 
-                               title="Patrimonio estimado a 12 meses", color_discrete_sequence=['#28A745'])
-            st.plotly_chart(fig_proy, use_container_width=True)
+            ing_tot = df_mov[df_mov['Categoria'] == 'Ingreso']['Importe'].sum()
+            gas_tot = df_mov[df_mov['Categoria'] == 'Gasto']['Importe'].sum()
+            meses = len(df_mov['Fecha'].dt.strftime('%Y-%m').unique())
+            ahorro_m = (ing_tot - gas_tot) / meses if meses > 0 else 0
+            datos_p = [{"Mes": f"Mes +{i}", "Patrimonio": t_act + (ahorro_m * i)} for i in range(1, 13)]
+            st.plotly_chart(px.line(pd.DataFrame(datos_p), x="Mes", y="Patrimonio", markers=True, color_discrete_sequence=['#28A745']), use_container_width=True)
 
         st.divider()
+        
+        # PARTE DE INVERSIONES
         col_inv1, col_inv2 = st.columns(2)
         with col_inv1:
-            st.subheader("🟢 Distribución")
+            st.subheader("🟢 Distribución Inversiones")
             st.plotly_chart(px.pie(df_inv, values='Valor_Actual', names='Ticket', hole=0.5, color_discrete_sequence=px.colors.sequential.Greens_r), use_container_width=True)
         with col_inv2:
             st.subheader("📈 Ganancia")
             df_inv['Ganancia'] = df_inv['Valor_Actual'] - df_inv['Precio_Compra']
             st.plotly_chart(px.bar(df_inv, x='Ticket', y='Ganancia', color='Ganancia', color_continuous_scale='Greens'), use_container_width=True)
 
-        st.sidebar.header("🔎 Filtros Personales")
-        a_sel = st.sidebar.selectbox("Año (Personal)", sorted(df_mov['Año'].unique(), reverse=True), key="p_year")
-        
+        st.divider()
+
+        # PARTE DE INGRESOS Y GASTOS (La que faltaba)
+        st.subheader(f"💸 Ingresos vs Gastos Personales ({a_sel})")
+        cp1, cp2 = st.columns(2)
+        with cp1:
+            st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Ingreso'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r, title="Ingresos"), use_container_width=True)
+        with cp2:
+            st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Gasto'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r, title="Gastos"), use_container_width=True)
+
     except Exception as e:
         st.error(f"Error en Personal: {e}")
 
@@ -88,7 +98,6 @@ with tab_fam:
         st.title("🏠 Finanzas Familiares")
         df_fam = pd.read_csv(URL_FAMILIAR)
         df_fam.columns = df_fam.columns.str.strip().str.replace('í', 'i').str.replace('ó', 'o')
-        
         df_fam['Importe'] = df_fam['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df_fam['Importe'] = pd.to_numeric(df_fam['Importe'], errors='coerce').fillna(0)
         df_fam['Fecha'] = pd.to_datetime(df_fam['Fecha'], dayfirst=True, errors='coerce')
@@ -100,19 +109,16 @@ with tab_fam:
         af_sel = st.sidebar.selectbox("Año (Familiar)", sorted(df_fam['Año'].unique(), reverse=True), key="f_year")
         df_ff = df_fam[df_fam['Año'] == af_sel]
 
-        # KPIs
+        # Alertas Familiares
         i_fam = df_ff[df_ff['Categoria'] == 'Ingreso']['Importe'].sum()
         g_fij = df_ff[df_ff['Tipo'] == 'Fijo']['Importe'].sum()
         g_var = df_ff[df_ff['Tipo'] == 'Variable']['Importe'].sum()
         bal = i_fam - (g_fij + g_var)
 
-        # --- MEJORA 2: ALERTAS ---
         if bal < 0:
-            st.error(f"⚠️ ¡Cuidado! El balance familiar está en negativo: {bal:.2f} €")
-        elif g_var > (i_fam * 0.4):
-            st.warning(f"🧐 Los gastos variables son muy altos ({g_var:.2f} €). Superan el 40% de los ingresos.")
+            st.error(f"⚠️ Balance familiar negativo: {bal:.2f} €")
         else:
-            st.success(f"✅ ¡Todo bajo control! Ahorro actual: {bal:.2f} €")
+            st.success(f"✅ Balance familiar positivo: {bal:.2f} €")
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Ingresos Familia", f"{i_fam:,.2f} €")
@@ -123,17 +129,12 @@ with tab_fam:
         st.divider()
         cf1, cf2 = st.columns(2)
         df_sg = df_ff[df_ff['Categoria'] == 'Gasto']
-        
         with cf1:
             st.subheader("📊 Gastos por Tipo")
-            fig_tipo = px.pie(df_sg, values='Importe', names='Tipo', hole=0.5, 
-                             color_discrete_map={'Fijo':'#D32F2F', 'Variable':'#FF8F00'})
-            st.plotly_chart(fig_tipo, use_container_width=True)
+            st.plotly_chart(px.pie(df_sg, values='Importe', names='Tipo', hole=0.5, color_discrete_map={'Fijo':'#D32F2F', 'Variable':'#FF8F00'}), use_container_width=True)
         with cf2:
             st.subheader("📑 Gastos por Concepto")
-            fig_conc = px.pie(df_sg, values='Importe', names='Concepto', hole=0.5,
-                             color_discrete_sequence=px.colors.sequential.Reds_r)
-            st.plotly_chart(fig_conc, use_container_width=True)
+            st.plotly_chart(px.pie(df_sg, values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Reds_r), use_container_width=True)
 
     except Exception as e:
         st.error(f"Error en Familiar: {e}")
