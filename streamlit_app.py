@@ -2,82 +2,87 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. Configuración de la Página
+# 1. Configuración
 st.set_page_config(page_title="Control Financiero Pro", layout="wide")
-st.markdown("<style>.stMetric { background-color: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #28A745; }</style>", unsafe_allow_html=True)
 
-# 2. Configuración de URLs
+# URLs de Google Sheets
 URL_BASE = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZNqNLXGe9WRTLKMnpk8jdOg/export?format=csv&gid="
-GIDS = {
-    "Personal": {"mov": "0", "inv": "863168602"},
-    "Familiar": {"mov": "23613697"} 
-}
+GID_MIS_MOV = "0"
+GID_MIS_INV = "863168602"
+GID_FAM_MOV = "23613697"
 
-# 3. Función de Carga de Datos
-def get_data(gid):
-    df = pd.read_csv(URL_BASE + gid)
-    df.columns = df.columns.str.strip().str.replace('í', 'i').str.replace('ó', 'o')
-    df['Importe'] = pd.to_numeric(df['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
-    if 'Felicidad' in df.columns:
-        df['Felicidad'] = pd.to_numeric(df['Felicidad'], errors='coerce').fillna(0)
-    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True)
-    df['Año'] = df['Fecha'].dt.year
-    df['Mes_Año'] = df['Fecha'].dt.strftime('%Y-%m')
-    return df
+# 2. Función para limpiar y procesar datos
+def procesar_datos(gid):
+    df_temp = pd.read_csv(URL_BASE + gid)
+    df_temp.columns = df_temp.columns.str.strip().str.replace('í', 'i').str.replace('ó', 'o')
+    if 'Importe' in df_temp.columns:
+        df_temp['Importe'] = pd.to_numeric(df_temp['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
+    if 'Felicidad' in df_temp.columns:
+        df_temp['Felicidad'] = pd.to_numeric(df_temp['Felicidad'], errors='coerce').fillna(0)
+    if 'Fecha' in df_temp.columns:
+        df_temp['Fecha'] = pd.to_datetime(df_temp['Fecha'], dayfirst=True)
+        df_temp['Año'] = df_temp['Fecha'].dt.year
+        df_temp['Mes_Año'] = df_temp['Fecha'].dt.strftime('%Y-%m')
+    return df_temp
 
-# 4. Función Interfaz Familiar (Solo Gastos/Ingresos)
-def draw_family_dashboard(df_mov):
-    st.title("🏠 Cuentas Familiares")
+# --- INTERFAZ ---
+tab1, tab2 = st.tabs(["👤 Mis Finanzas", "🏠 Finanzas Familiares"])
+
+with tab1:
+    st.title("Mi Patrimonio Personal")
+    # Carga datos personales
+    df_m = procesar_datos(GID_MIS_MOV)
+    df_i = procesar_datos(GID_MIS_INV)
     
-    # Filtro de tiempo
-    anho = st.sidebar.selectbox("Año (Familiar)", sorted(df_mov['Año'].unique(), reverse=True))
-    df_f = df_mov[df_mov['Año'] == anho]
-    
-    # KPIs de Balance
-    ingresos = df_f[df_f['Categoria'] == 'Ingreso']['Importe'].sum()
-    gastos = df_f[df_f['Categoria'] == 'Gasto']['Importe'].sum()
-    balance = ingresos - gastos
-    
+    # KPIs Verdes (Inversiones)
+    val_act = df_i['Valor_Actual'].sum()
+    inv_ini = df_i['Precio_Compra'].sum()
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ingresos Totales", f"{ingresos:,.2f} €")
-    c2.metric("Gastos Totales", f"{gastos:,.2f} €", delta=f"{-gastos:,.2f} €", delta_color="inverse")
-    c3.metric("Balance Mensual", f"{balance:,.2f} €", delta=f"{(balance/ingresos*100) if ingresos>0 else 0:.1f}% Ahorro")
+    c1.metric("Patrimonio en Inversiones", f"{val_act:,.2f} €", f"{val_act-inv_ini:,.2f} €")
+    c2.metric("Capital Invertido", f"{inv_ini:,.2f} €")
+    c3.metric("Rentabilidad Media", f"{(val_act-inv_ini)/inv_ini*100:.2f} %" if inv_ini != 0 else "0%")
 
+    # Gráficos Inversión
+    col_inv1, col_inv2 = st.columns(2)
+    with col_inv1:
+        st.plotly_chart(px.pie(df_i, values='Valor_Actual', names='Ticket', hole=0.5, title="Distribución por Activo", color_discrete_sequence=px.colors.sequential.Greens_r), use_container_width=True)
+    with col_inv2:
+        df_i['Ganancia'] = df_i['Valor_Actual'] - df_i['Precio_Compra']
+        st.plotly_chart(px.bar(df_i, x='Ticket', y='Ganancia', color='Ganancia', title="Ganancia por Fondo", color_continuous_scale='Greens'), use_container_width=True)
+
+    # Donuts de Gastos/Ingresos Personales
     st.divider()
-
-    # Gráficos Circulares
-    st.subheader("📊 Distribución de Gastos e Ingresos")
-    col1, col2 = st.columns(2)
+    anho_p = st.sidebar.selectbox("Año (Personal)", sorted(df_m['Año'].unique(), reverse=True), key="ap")
+    df_p_filt = df_m[df_m['Año'] == anho_p]
     
-    with col1:
-        df_ing = df_f[df_f['Categoria'] == 'Ingreso']
-        if not df_ing.empty:
-            fig_i = px.pie(df_ing, values='Importe', names='Concepto', hole=0.5, title="Origen de Ingresos", color_discrete_sequence=px.colors.sequential.Blues_r)
-            st.plotly_chart(fig_i, use_container_width=True)
+    cp1, cp2 = st.columns(2)
+    with cp1:
+        st.plotly_chart(px.pie(df_p_filt[df_p_filt['Categoria']=='Ingreso'], values='Importe', names='Concepto', hole=0.5, title="Ingresos Personales", color_discrete_sequence=px.colors.sequential.Blues_r), use_container_width=True)
+    with cp2:
+        st.plotly_chart(px.pie(df_p_filt[df_p_filt['Categoria']=='Gasto'], values='Importe', names='Concepto', hole=0.5, title="Gastos Personales", color_discrete_sequence=px.colors.sequential.Reds_r), use_container_width=True)
+
+with tab2:
+    st.title("Cuentas Familiares")
+    # Carga SOLO datos familiares
+    df_f = procesar_datos(GID_FAM_MOV)
     
-    with col2:
-        df_gas = df_f[df_f['Categoria'] == 'Gasto']
-        if not df_gas.empty:
-            fig_g = px.pie(df_gas, values='Importe', names='Concepto', hole=0.5, title="Destino de Gastos", color_discrete_sequence=px.colors.sequential.Reds_r)
-            st.plotly_chart(fig_g, use_container_width=True)
+    # Filtro año familiar
+    anho_f = st.sidebar.selectbox("Año (Familiar)", sorted(df_f['Año'].unique(), reverse=True), key="af")
+    df_f_filt = df_f[df_f['Año'] == anho_f]
+    
+    # KPIs Familiares (Sin inversiones)
+    ing_f = df_f_filt[df_f_filt['Categoria'] == 'Ingreso']['Importe'].sum()
+    gas_f = df_f_filt[df_f_filt['Categoria'] == 'Gasto']['Importe'].sum()
+    
+    cf1, cf2, cf3 = st.columns(3)
+    cf1.metric("Ingresos Familiares", f"{ing_f:,.2f} €")
+    cf2.metric("Gastos Familiares", f"{gas_f:,.2f} €")
+    cf3.metric("Ahorro Familiar", f"{ing_f - gas_f:,.2f} €")
 
-    # Detalle de categorías (Fijos vs Variables si usas la columna Tipo)
-    if 'Tipo' in df_f.columns:
-        st.divider()
-        st.subheader("📉 Análisis por Tipo de Gasto")
-        df_tipo = df_f[df_f['Categoria'] == 'Gasto'].groupby('Tipo')['Importe'].sum().reset_index()
-        fig_tipo = px.bar(df_tipo, x='Tipo', y='Importe', color='Tipo', title="Fijos vs Variables", color_discrete_map={'Fijo': '#E74C3C', 'Variable': '#F39C12'})
-        st.plotly_chart(fig_tipo, use_container_width=True)
-
-# 5. Función Interfaz Personal (Completa)
-def draw_personal_dashboard(df_mov, df_inv):
-    st.title("👤 Mi Patrimonio Personal")
-    # ... (Aquí va tu código de inversiones y felicidad que ya funcionaba) ...
-    # Nota: Por brevedad no lo repito todo, pero mantén la lógica que ya tenías.
-
-# --- EJECUCIÓN APP ---
-tab_pers, tab_fam = st.tabs(["👤 Mis Finanzas", "🏠 Finanzas Familiares"])
-
-with tab_pers:
-    # Carga datos personales (Mov + Inv)
-    df
+    # Donuts Familiares
+    st.divider()
+    colf1, colf2 = st.columns(2)
+    with colf1:
+        st.plotly_chart(px.pie(df_f_filt[df_f_filt['Categoria']=='Ingreso'], values='Importe', names='Concepto', hole=0.5, title="Origen Ingresos Familia", color_discrete_sequence=px.colors.sequential.Blues_r), use_container_width=True)
+    with colf2:
+        st.plotly_chart(px.pie(df_f_filt[df_f_filt['Categoria']=='Gasto'], values='Importe', names='Concepto', hole=0.5, title="Destino Gastos Familia", color_discrete_sequence=px.colors.sequential.Reds_r), use_container_width=True)
