@@ -112,4 +112,15 @@ with tab_fam:
         df_sg = df_ff[df_ff['Categoria'] == 'Gasto']
         
         with cf1:
-            st
+            st.subheader("📊 Gastos por Tipo")
+            fig_tipo = px.pie(df_sg, values='Importe', names='Tipo', hole=0.5, 
+                             color_discrete_map={'Fijo':'#D32F2F', 'Variable':'#FF8F00'})
+            st.plotly_chart(fig_tipo, use_container_width=True)
+        with cf2:
+            st.subheader("📑 Gastos por Concepto")
+            fig_conc = px.pie(df_sg, values='Importe', names='Concepto', hole=0.5,
+                             color_discrete_sequence=px.colors.sequential.Reds_r)
+            st.plotly_chart(fig_conc, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Error en Familiar: {e}")
