@@ -4,7 +4,18 @@ import plotly.express as px
 
 # 1. Configuración de Estilo y Página
 st.set_page_config(page_title="Control Patrimonial Total", layout="wide")
-st.markdown("<style>.stMetric { background-color: #ffffff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #28A745; }</style>", unsafe_allow_html=True)
+
+# ESTILO CORREGIDO: Eliminamos el fondo blanco fijo para que sea compatible con Modo Oscuro (Móvil)
+st.markdown("""
+    <style>
+    [data-testid="stMetric"] {
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border-top: 4px solid #28A745;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # 2. Conexión a Datos
 URL_MOVIMIENTOS = "https://docs.google.com/spreadsheets/d/1LRG_a5JYm78tAYVR2qhiZNqNLXGe9WRTLKMnpk8jdOg/export?format=csv&gid=0"
@@ -23,7 +34,6 @@ with tab_pers:
 
         df_mov['Importe'] = df_mov['Importe'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
         df_mov['Importe'] = pd.to_numeric(df_mov['Importe'], errors='coerce').fillna(0)
-        df_mov['Felicidad'] = pd.to_numeric(df_mov['Felicidad'], errors='coerce').fillna(0)
         df_mov['Fecha'] = pd.to_datetime(df_mov['Fecha'], dayfirst=True, errors='coerce')
         df_mov = df_mov.dropna(subset=['Fecha']) 
         df_mov['Año'] = df_mov['Fecha'].dt.year
@@ -40,27 +50,25 @@ with tab_pers:
         rent = (gan / t_inv * 100) if t_inv != 0 else 0
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Patrimonio en Inversiones", f"{t_act:,.2f} €", f"{gan:,.2f} €")
+        c1.metric("Patrimonio Inversiones", f"{t_act:,.2f} €", f"{gan:,.2f} €")
         c2.metric("Capital Invertido", f"{t_inv:,.2f} €")
         c3.metric("Rentabilidad Media", f"{rent:.2f} %")
 
+        st.divider()
         col_inv1, col_inv2 = st.columns(2)
         with col_inv1:
-            st.subheader("🟢 Distribución de Cartera")
+            st.subheader("🟢 Distribución")
             st.plotly_chart(px.pie(df_inv, values='Valor_Actual', names='Ticket', hole=0.5, color_discrete_sequence=px.colors.sequential.Greens_r), use_container_width=True)
         with col_inv2:
-            st.subheader("📈 Ganancia por Fondo")
+            st.subheader("📈 Ganancia")
             df_inv['Ganancia'] = df_inv['Valor_Actual'] - df_inv['Precio_Compra']
             st.plotly_chart(px.bar(df_inv, x='Ticket', y='Ganancia', color='Ganancia', color_continuous_scale='Greens'), use_container_width=True)
 
         st.sidebar.header("🔎 Filtros Personales")
         a_sel = st.sidebar.selectbox("Año (Personal)", sorted(df_mov['Año'].unique(), reverse=True))
-        m_sel = st.sidebar.selectbox("Mes (Personal)", ["Todos"] + sorted(df_mov[df_mov['Año'] == a_sel]['Mes_Año'].unique()))
-
+        
         df_f = df_mov[df_mov['Año'] == a_sel]
-        if m_sel != "Todos": df_f = df_f[df_f['Mes_Año'] == m_sel]
-
-        st.subheader(f"💸 Flujo de Caja: {mes_sel if 'mes_sel' in locals() else 'Personal'}")
+        st.subheader("💸 Ingresos vs Gastos")
         cp1, cp2 = st.columns(2)
         with cp1:
             st.plotly_chart(px.pie(df_f[df_f['Categoria'] == 'Ingreso'], values='Importe', names='Concepto', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r, title="Ingresos"), use_container_width=True)
@@ -95,8 +103,8 @@ with tab_fam:
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Ingresos Familia", f"{i_fam:,.2f} €")
-        m2.metric("Gastos Fijos", f"{g_fij:,.2f} €", delta_color="inverse")
-        m3.metric("Gastos Variables", f"{g_var:,.2f} €", delta_color="inverse")
+        m2.metric("Gastos Fijos", f"{g_fij:,.2f} €")
+        m3.metric("Gastos Variables", f"{g_var:,.2f} €")
         m4.metric("Balance Total", f"{bal:,.2f} €")
 
         st.divider()
@@ -104,25 +112,4 @@ with tab_fam:
         df_sg = df_ff[df_ff['Categoria'] == 'Gasto']
         
         with cf1:
-            st.subheader("📊 Gastos por Tipo")
-            # Colores Rojo (Fijo) y Naranja (Variable) para coherencia de gastos
-            fig_tipo = px.pie(df_sg, values='Importe', names='Tipo', hole=0.5, 
-                             color_discrete_map={'Fijo':'#D32F2F', 'Variable':'#FF8F00'})
-            st.plotly_chart(fig_tipo, use_container_width=True)
-            
-        with cf2:
-            st.subheader("📑 Gastos por Concepto")
-            # Escala de rojos para que sepa que son gastos
-            fig_conc = px.pie(df_sg, values='Importe', names='Concepto', hole=0.5,
-                             color_discrete_sequence=px.colors.sequential.Reds_r)
-            st.plotly_chart(fig_conc, use_container_width=True)
-
-        # Añadimos un pequeño gráfico de ingresos familiares también
-        st.divider()
-        st.subheader("🔵 Detalle de Ingresos Familiares")
-        df_ing_f = df_ff[df_ff['Categoria'] == 'Ingreso']
-        fig_ing_fam = px.bar(df_ing_f, x='Concepto', y='Importe', color='Importe', color_continuous_scale='Blues')
-        st.plotly_chart(fig_ing_fam, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Error en Familiar: {e}")
+            st
